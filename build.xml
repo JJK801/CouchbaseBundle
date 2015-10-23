@@ -3,9 +3,9 @@
     From https://raw.github.com/alex88/symfony2.1-jenkins-template/master/build.xml
 -->
 <project name="CouchbaseBundle" default="build">
-    <target name="build" depends="prepare,composer,lint,phploc,pdepend,phpmd-ci,phpcs-ci,phpcpd,phpdox,phpcb,vendors,phpunit"/>
+    <target name="build" depends="prepare,lint,vendors,phploc,pdepend,phpmd-ci,phpcs-ci,phpcpd,phpdox,phpcb,phpunit"/>
 
-    <target name="build-parallel" depends="prepare,lint,tools-parallel,phpunit,phpcb"/>
+    <target name="build-parallel" depends="prepare,lint,vendors,tools-parallel,phpunit,phpcb"/>
 
     <target name="tools-parallel" description="Run tools in parallel">
         <parallel threadCount="2">
@@ -39,29 +39,46 @@
         <mkdir dir="${basedir}/build/phpdox"/>
     </target>
 
-    <target name="lint" description="Perform syntax check of sourcecode files">
-        <apply executable="php" failonerror="true">
-            <arg value="-l" />
-
-            <fileset dir="${basedir}">
-                <include name="**/*.php" />
+    <target name="checkModified" description="Check for modified php files">
+        <echo message="Searching for newly modified files" />
+        <path id="editedfiles">
+            <fileset dir="${basedir}/">
                 <modified />
+                <include name="**/*.php" />
+                <exclude name="**/vendor/**" />
+                <exclude name="**/build/**" />
+                <exclude name="**/Tests/**" />
             </fileset>
-        </apply>
+        </path>
+        <pathconvert pathsep="${line.separator}" property="files.modified" refid="editedfiles" />
+        <condition property="modifiedFiles">
+            <not>
+                <equals arg1="${files.modified}" arg2="" />
+            </not>
+        </condition>
+    </target>
+
+    <target name="lint" depends="checkModified" description="Perform syntax check of sourcecode files">
+        <exec executable="bash" failonerror="true">
+            <arg value="-c" />
+            <arg value="echo '${files.modified}' | xargs -n 1 -P 4 php -l" />
+        </exec>
     </target>
 
     <target name="phploc" description="Measure project size using PHPLOC">
-        <exec executable="phploc">
+        <exec executable="${basedir}/vendor/bin/phploc">
             <arg value="--log-csv" />
             <arg value="${basedir}/build/logs/phploc.csv" />
             <arg path="${basedir}" />
+            <arg value="--exclude" />
+            <arg value="vendor" />
             <arg value="--exclude" />
             <arg value="Tests" />
         </exec>
     </target>
 
     <target name="pdepend" description="Calculate software metrics using PHP_Depend">
-        <exec executable="pdepend">
+        <exec executable="${basedir}/vendor/bin/pdepend">
             <arg value="--jdepend-xml=${basedir}/build/logs/jdepend.xml" />
             <arg value="--jdepend-chart=${basedir}/build/pdepend/dependencies.svg" />
             <arg value="--overview-pyramid=${basedir}/build/pdepend/overview-pyramid.svg" />
@@ -71,7 +88,7 @@
     </target>
 
     <target name="phpmd" description="Perform project mess detection using PHPMD and print human readable output. Intended for usage on the command line before committing.">
-        <exec executable="phpmd">
+        <exec executable="${basedir}/vendor/bin/phpmd">
             <arg path="${basedir}/" />
             <arg value="text" />
             <arg value="${basedir}/Resources/jenkins/phpmd.xml" />
@@ -81,7 +98,7 @@
     </target>
 
     <target name="phpmd-ci" description="Perform project mess detection using PHPMD creating a log file for the continuous integration server">
-        <exec executable="phpmd">
+        <exec executable="${basedir}/vendor/bin/phpmd">
             <arg path="${basedir}/" />
             <arg value="xml" />
             <arg value="${basedir}/Resources/jenkins/phpmd.xml" />
@@ -89,11 +106,13 @@
             <arg value="${basedir}/build/logs/pmd.xml" />
             <arg value="--exclude" />
             <arg value="vendor,Tests" />
+            <arg value="--suffixes" />
+            <arg value=".php" />
         </exec>
     </target>
 
     <target name="phpcs" description="Find coding standard violations using PHP_CodeSniffer and print human readable output. Intended for usage on the command line before committing.">
-        <exec executable="phpcs">
+        <exec executable="${basedir}/vendor/bin/phpcs">
             <arg value="--standard=Symfony2" />
             <arg path="${basedir}" />
             <arg value="--ignore=${basedir}/vendor,${basedir}/Tests" />
@@ -101,7 +120,7 @@
     </target>
 
     <target name="phpcs-ci" description="Find coding standard violations using PHP_CodeSniffer creating a log file for the continuous integration server">
-        <exec executable="phpcs" output="/dev/null">
+        <exec executable="${basedir}/vendor/bin/phpcs" output="/dev/null">
             <arg value="--report=checkstyle" />
             <arg value="--report-file=${basedir}/build/logs/checkstyle.xml" />
             <arg value="--standard=Symfony2" />
@@ -111,39 +130,45 @@
     </target>
 
     <target name="phpcpd" description="Find duplicate code using PHPCPD">
-        <exec executable="phpcpd">
+        <exec executable="${basedir}/vendor/bin/phpcpd">
             <arg value="--log-pmd" />
             <arg value="${basedir}/build/logs/pmd-cpd.xml" />
             <arg path="${basedir}" />
             <arg value="--exclude" />
-            <arg value="vendor,Tests" />
+            <arg value="vendor" />
+            <arg value="--exclude" />
+            <arg value="Tests" />
         </exec>
     </target>
 
     <target name="phpdox" description="Generate API documentation using phpDox">
-        <exec executable="phpdox">
+        <exec executable="${basedir}/vendor/bin/phpdox">
             <arg value="-f" />
             <arg path="${basedir}/Resources/jenkins/phpdox.xml" />
         </exec>
     </target>
 
     <target name="phpunit" description="Run unit tests with PHPUnit">
-        <exec executable="phpunit" failonerror="true">
+        <exec executable="${basedir}/vendor/bin/phpunit" failonerror="true">
             <arg value="-c" />
             <arg path="${basedir}" />
         </exec>
     </target>
 
     <target name="phpcb" description="Aggregate tool output with PHP_CodeBrowser">
-        <exec executable="phpcb">
+        <exec executable="${basedir}/vendor/bin/phpcb">
             <arg value="--log" />
             <arg path="${basedir}/build/logs" />
             <arg value="--source" />
             <arg path="${basedir}" />
             <arg value="--output" />
             <arg path="${basedir}/build/code-browser" />
-            <arg value="--exclude" />
-            <arg value="vendor,Tests" />
+            <arg value="--ignore" />
+            <arg path="${basedir}/vendor/" />
+            <arg value="--ignore" />
+            <arg path="${basedir}/build/" />
+            <arg value="--ignore" />
+            <arg path="${basedir}/Tests/" />
         </exec>
     </target>
 
@@ -154,7 +179,7 @@
         </exec>
     </target>
 
-    <target name="vendors" description="Install vendors">
+    <target name="vendors" depends="composer" description="Install vendors">
         <exec executable="${basedir}/composer.phar" failonerror="true">
             <arg value="install" />
             <arg value="--prefer-dist"/>

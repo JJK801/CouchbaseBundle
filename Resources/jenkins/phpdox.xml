@@ -1,9 +1,12 @@
 <?xml version="1.0" ?>
-<phpdox xmlns="http://phpdox.net/config" silent="false">
+<phpdox xmlns="http://xml.phpdox.net/config" silent="false">
     <project name="CouchbaseBundle" source="." workdir="build/phpdox">
         <collector publiconly="false">
             <include mask="*.php" />
             <exclude mask="*Autoload.php" />
+            <exclude mask="**vendor**"/>
+            <exclude mask="**Tests**"/>
+            <exclude mask="**DependencyInjection**"/>
         </collector>
 
         <generator output="build">
